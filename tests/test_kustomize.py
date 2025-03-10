@@ -8,6 +8,8 @@ import yaml
 
 from flux_local import kustomize, exceptions, manifest, command
 
+from flux_local.command import Command, run
+
 TESTDATA_DIR = Path("tests/testdata")
 
 KUSTOMIZATION = """---
@@ -27,6 +29,29 @@ async def test_grep(path: Path, snapshot: SnapshotAssertion) -> None:
     result = await kustomize.grep("kind=ConfigMap", path).run()
     assert "Secret" not in result
     assert "ConfigMap" in result
+    assert result == snapshot
+
+@pytest.mark.parametrize(
+    "path",
+    [TESTDATA_DIR / "cluster10" / "clusters" / "prod", (TESTDATA_DIR / "cluster10" / "clusters" / "prod").absolute()],
+)
+async def test_excludes_apps_correctly_actual(path: Path, snapshot: SnapshotAssertion) -> None:
+    """Test a kustomize grep command."""
+    result = await kustomize.grep("kind=Kustomization", path).run()
+    assert "do-not-include-yet-danger" not in result
+    assert result == snapshot
+
+@pytest.mark.parametrize(
+    "path",
+    [TESTDATA_DIR / "cluster10" / "clusters" / "prod", (TESTDATA_DIR / "cluster10" / "clusters" / "prod").absolute()],
+)
+async def test_excludes_apps_correctly_expected(path: Path, snapshot: SnapshotAssertion) -> None:
+    """Test a kustomize grep command."""
+    cmd = "flux build kustomization  --dry-run cluster10 --path".split() + \
+        [str(path.absolute())] + \
+        "--kustomization-file tests/testdata/cluster10/external-ks.yaml".split()
+    result = await run(Command(cmd))
+    assert "do-not-include-yet-danger" not in result
     assert result == snapshot
 
 
